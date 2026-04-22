@@ -166,7 +166,23 @@ export default function BuildForge() {
   const [signupMsg, setSignupMsg] = useState("");
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
   const [checkoutMsg, setCheckoutMsg] = useState("");
+  const [hasAccess, setHasAccess] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    try { setHasAccess(localStorage.getItem("bf-access") === "full"); } catch {}
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "bf-access") setHasAccess(e.newValue === "full");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const revokeAccess = () => {
+    if (!confirm("Sign out of unlocked access on this device?")) return;
+    try { localStorage.removeItem("bf-access"); localStorage.removeItem("bf-access-code"); } catch {}
+    setHasAccess(false);
+  };
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("bf-theme") : null;
@@ -263,6 +279,7 @@ export default function BuildForge() {
 
   const startCheckout = async (planId: string) => {
     if (planId === "free") { setSection("agent"); return; }
+    if (hasAccess) { setSection("templates"); return; }
     if (checkoutPlan) return;
     setCheckoutPlan(planId);
     setCheckoutMsg("");
@@ -468,6 +485,22 @@ export default function BuildForge() {
         <NavBtn id="agent" label="FOR YOUR AGENT" />
         <NavBtn id="templates" label="TEMPLATES" />
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "10px" }}>
+          {hasAccess && (
+            <button
+              type="button"
+              onClick={revokeAccess}
+              title="Click to sign out of unlocked access"
+              style={{
+                fontSize: "8px", letterSpacing: "1px",
+                color: "#00c882",
+                background: "rgba(0,200,130,0.12)",
+                border: "1px solid rgba(0,200,130,0.4)",
+                borderRadius: "2px", padding: "2px 7px",
+                fontFamily: "inherit", fontWeight: 700,
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >✓ UNLOCKED</button>
+          )}
           <span style={S.badge}>ANAKATECH</span>
           <ThemeToggle />
         </div>
@@ -641,16 +674,24 @@ export default function BuildForge() {
                     disabled={checkoutPlan !== null && checkoutPlan !== plan.id}
                     style={{
                       width: "100%", padding: "11px",
-                      background: plan.ctaStyle === "brand" ? "var(--grad-accent)"
-                        : plan.ctaStyle === "gold" ? "linear-gradient(135deg,#ffd700,#ffaa00)"
-                          : "transparent",
-                      border: plan.ctaStyle === "outline" ? `1px solid ${plan.color}` : "none",
-                      color: plan.ctaStyle === "gold" ? "#000" : plan.ctaStyle === "brand" ? "#fff" : plan.color,
+                      background: hasAccess && plan.id !== "free"
+                        ? "rgba(0,200,130,0.14)"
+                        : plan.ctaStyle === "brand" ? "var(--grad-accent)"
+                          : plan.ctaStyle === "gold" ? "linear-gradient(135deg,#ffd700,#ffaa00)"
+                            : "transparent",
+                      border: hasAccess && plan.id !== "free"
+                        ? "1px solid rgba(0,200,130,0.55)"
+                        : plan.ctaStyle === "outline" ? `1px solid ${plan.color}` : "none",
+                      color: hasAccess && plan.id !== "free"
+                        ? "#00c882"
+                        : plan.ctaStyle === "gold" ? "#000" : plan.ctaStyle === "brand" ? "#fff" : plan.color,
                       borderRadius: "4px", cursor: checkoutPlan === plan.id ? "wait" : "pointer", fontSize: "10px", letterSpacing: "2px",
                       fontFamily: "inherit", fontWeight: 700,
                       opacity: checkoutPlan && checkoutPlan !== plan.id ? 0.5 : 1,
                     }}>
-                    {checkoutPlan === plan.id ? <span className="spin">◜</span> : plan.cta}
+                    {checkoutPlan === plan.id
+                      ? <span className="spin">◜</span>
+                      : hasAccess && plan.id !== "free" ? "✓ INCLUDED" : plan.cta}
                   </button>
                 </div>
               ))}
