@@ -85,7 +85,7 @@ const TEMPLATES = [
 const PLANS = [
   {
     id: "free", name: "Free", price: "0", per: "", badge: null,
-    color: "#3a3a5c", glow: false,
+    color: "#5a5a7c", glow: false,
     description: "Taste the system.",
     features: [
       { text: "1 active project", included: true },
@@ -150,8 +150,11 @@ const AGENTS = ["Claude", "ChatGPT", "Cursor", "Gemini", "Copilot", "Windsurf", 
 
 type TemplateFileKey = "prd" | "arch" | "rules" | "plan";
 type SignupState = "idle" | "loading" | "ok" | "error";
+type CheckoutState = "idle" | "loading" | "error";
+type Theme = "dark" | "light";
 
 export default function BuildForge() {
+  const [theme, setTheme] = useState<Theme>("dark");
   const [section, setSection] = useState("product");
   const [activeTemplate, setActiveTemplate] = useState("saas");
   const [activeFile, setActiveFile] = useState<TemplateFileKey>("prd");
@@ -161,12 +164,26 @@ export default function BuildForge() {
   const [email, setEmail] = useState("");
   const [signupState, setSignupState] = useState<SignupState>("idle");
   const [signupMsg, setSignupMsg] = useState("");
+  const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
+  const [checkoutMsg, setCheckoutMsg] = useState("");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("bf-theme") : null;
+    if (saved === "light" || saved === "dark") setTheme(saved);
+    else if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: light)").matches) setTheme("light");
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.setAttribute("data-theme", theme);
+    try { localStorage.setItem("bf-theme", theme); } catch {}
+  }, [theme]);
 
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;700&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap";
     document.head.appendChild(link);
   }, []);
 
@@ -192,7 +209,7 @@ export default function BuildForge() {
       for (let r = 0; r <= rows; r++) {
         for (let c = 0; c <= cols; c++) {
           const wave = Math.sin(t * 0.4 + c * 0.6 + r * 0.5) * 0.5 + 0.5;
-          const alpha = wave * 0.06 + 0.02;
+          const alpha = wave * 0.08 + 0.03;
           ctx.fillStyle = `rgba(255, 107, 53, ${alpha})`;
           ctx.beginPath();
           ctx.arc(c * cw, r * ch, 1.5, 0, Math.PI * 2);
@@ -204,7 +221,7 @@ export default function BuildForge() {
     };
     draw();
     return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", resize); };
-  }, []);
+  }, [theme]);
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -244,103 +261,206 @@ export default function BuildForge() {
     }
   };
 
+  const startCheckout = async (planId: string) => {
+    if (planId === "free") { setSection("agent"); return; }
+    if (checkoutPlan) return;
+    setCheckoutPlan(planId);
+    setCheckoutMsg("");
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        setCheckoutPlan(null);
+        setCheckoutMsg(data?.error || "Could not start checkout.");
+        setTimeout(() => setCheckoutMsg(""), 4000);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setCheckoutPlan(null);
+      setCheckoutMsg("Network error. Try again.");
+      setTimeout(() => setCheckoutMsg(""), 4000);
+    }
+  };
+
   const tpl = TEMPLATES.find(t => t.id === activeTemplate);
   const fileKey: Record<TemplateFileKey, TemplateFileKey> = { prd: "prd", arch: "arch", rules: "rules", plan: "plan" };
 
   const css = `
+    :root, html[data-theme="dark"] {
+      --bg: #06060e;
+      --bg-nav: rgba(6, 6, 14, 0.92);
+      --surface-1: rgba(255,255,255,0.02);
+      --surface-2: rgba(255,255,255,0.04);
+      --surface-3: rgba(255,255,255,0.06);
+      --border-1: rgba(255,255,255,0.06);
+      --border-2: rgba(255,255,255,0.1);
+      --border-3: rgba(255,255,255,0.14);
+      --text-1: #ffffff;
+      --text-2: #d8d8f0;
+      --text-3: #b0b0d0;
+      --text-4: #8888a8;
+      --text-5: #606080;
+      --accent: #ff6b35;
+      --accent-2: #ff9a6b;
+      --grad-accent: linear-gradient(135deg, #ff6b35, #ff4500);
+      --accent-border: rgba(255,107,53,0.28);
+      --accent-bg: rgba(255,107,53,0.08);
+      --code-bg: #030309;
+      --shadow-plan: 0 0 30px rgba(255,107,53,0.08);
+    }
+    html[data-theme="light"] {
+      --bg: #f7f5f0;
+      --bg-nav: rgba(247, 245, 240, 0.92);
+      --surface-1: rgba(0,0,0,0.02);
+      --surface-2: rgba(0,0,0,0.04);
+      --surface-3: rgba(0,0,0,0.06);
+      --border-1: rgba(0,0,0,0.08);
+      --border-2: rgba(0,0,0,0.12);
+      --border-3: rgba(0,0,0,0.18);
+      --text-1: #0a0a14;
+      --text-2: #22222e;
+      --text-3: #404050;
+      --text-4: #606078;
+      --text-5: #80809a;
+      --accent: #ff6b35;
+      --accent-2: #ff4500;
+      --grad-accent: linear-gradient(135deg, #ff6b35, #ff4500);
+      --accent-border: rgba(255,107,53,0.35);
+      --accent-bg: rgba(255,107,53,0.1);
+      --code-bg: #efece5;
+      --shadow-plan: 0 0 30px rgba(255,107,53,0.12);
+    }
+    html, body { background: var(--bg); color: var(--text-2); }
+
     @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
     @keyframes pulse { 0%,100% { opacity:0.6; } 50% { opacity:1; } }
-    @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
     @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
     .fade-up { animation: fadeUp 0.5s ease forwards; }
-    .plan-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .plan-card { transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; }
     .plan-card:hover { transform: translateY(-4px); }
     .tpl-card { transition: all 0.15s ease; }
     .tpl-card:hover { transform: translateY(-2px); }
     .nav-btn { transition: color 0.15s ease; }
-    .nav-btn:hover { color: #fff !important; }
+    .nav-btn:hover { color: var(--text-1) !important; }
     .copy-btn { transition: all 0.2s ease; }
     .copy-btn:hover { opacity: 0.85; }
     .file-tab { transition: all 0.15s ease; }
-    .file-tab:hover { color: #aaa !important; }
+    .file-tab:hover { color: var(--text-2) !important; }
     .feature-row { transition: background 0.1s ease; }
-    .feature-row:hover { background: rgba(255,255,255,0.02); }
-    .signup-input::placeholder { color: #33335a; }
-    .signup-input:focus { border-color: rgba(255,107,53,0.5); outline: none; }
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: #0a0a18; }
-    ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 2px; }
+    .feature-row:hover { background: var(--surface-1); }
+    .theme-btn { transition: background 0.15s ease, transform 0.15s ease; }
+    .theme-btn:hover { background: var(--surface-3); transform: rotate(15deg); }
+    .signup-input::placeholder { color: var(--text-5); }
+    .signup-input:focus { border-color: var(--accent-border); outline: none; box-shadow: 0 0 0 3px rgba(255,107,53,0.08); }
+    .cta-primary { box-shadow: 0 4px 18px rgba(255,107,53,0.28); }
+    .spin { animation: spin 0.7s linear infinite; display: inline-block; }
+
+    @media (max-width: 720px) {
+      .sect-pad { padding: 44px 20px !important; }
+      .hero-pad { padding: 56px 20px 48px !important; }
+      .content-pad { padding: 36px 20px !important; }
+      .grid-2col { grid-template-columns: 1fr !important; }
+      .file-tabs { flex-wrap: wrap; }
+      .nav-inner { padding: 0 16px !important; }
+      .nav-logo-sep { margin-right: 14px !important; padding-right: 14px !important; }
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border-3); border-radius: 3px; }
   `;
 
   const S = {
     root: {
       minHeight: "100vh",
-      background: "#06060e",
-      color: "#c8c8e0",
-      fontFamily: "'JetBrains Mono', monospace",
+      background: "var(--bg)",
+      color: "var(--text-2)",
+      fontFamily: "'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     },
     nav: {
       position: "sticky" as const, top: 0, zIndex: 100,
       display: "flex", alignItems: "center",
-      background: "rgba(6,6,14,0.92)",
+      background: "var(--bg-nav)",
       backdropFilter: "blur(16px)",
-      borderBottom: "1px solid rgba(255,107,53,0.12)",
+      WebkitBackdropFilter: "blur(16px)",
+      borderBottom: "1px solid var(--accent-border)",
       padding: "0 28px",
       overflowX: "auto" as const,
     },
     logo: {
       display: "flex", alignItems: "center", gap: "10px",
       padding: "18px 20px 18px 0", marginRight: "24px",
-      borderRight: "1px solid rgba(255,107,53,0.15)",
+      borderRight: "1px solid var(--accent-border)",
       whiteSpace: "nowrap" as const,
     },
     logoHex: {
       width: "26px", height: "26px",
-      background: "linear-gradient(135deg, #ff6b35, #ff4500)",
+      background: "var(--grad-accent)",
       clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: "11px", color: "#fff", fontWeight: 800,
     },
     logoText: {
-      fontSize: "13px", fontWeight: 800, color: "#fff",
-      letterSpacing: "2px", fontFamily: "'Syne', sans-serif",
+      fontSize: "13px", fontWeight: 800, color: "var(--text-1)",
+      letterSpacing: "3px",
     },
     badge: {
-      fontSize: "8px", letterSpacing: "1px", color: "#ff6b35",
-      background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.25)",
-      borderRadius: "2px", padding: "1px 6px",
+      fontSize: "8px", letterSpacing: "1px", color: "var(--accent)",
+      background: "var(--accent-bg)", border: "1px solid var(--accent-border)",
+      borderRadius: "2px", padding: "2px 7px",
     },
   };
 
   const NavBtn = ({ id, label }: { id: string; label: string }) => (
     <button className="nav-btn" onClick={() => setSection(id)} style={{
       padding: "18px 16px", background: "none", border: "none",
-      borderBottom: section === id ? "2px solid #ff6b35" : "2px solid transparent",
-      color: section === id ? "#fff" : "#3a3a5c",
+      borderBottom: section === id ? "2px solid var(--accent)" : "2px solid transparent",
+      color: section === id ? "var(--text-1)" : "var(--text-4)",
       cursor: "pointer", fontSize: "10px", letterSpacing: "1.5px",
-      fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap",
+      fontFamily: "inherit", whiteSpace: "nowrap", fontWeight: 600,
     }}>{label}</button>
   );
 
   const CopyBtn = ({ text, id, label = "COPY" }: { text: string; id: string; label?: string }) => (
     <button className="copy-btn" onClick={() => copy(text, id)} style={{
       padding: "8px 16px",
-      background: copied === id ? "rgba(0,255,157,0.12)" : "rgba(255,255,255,0.04)",
-      border: `1px solid ${copied === id ? "rgba(0,255,157,0.5)" : "rgba(255,255,255,0.08)"}`,
-      color: copied === id ? "#00ff9d" : "#666",
+      background: copied === id ? "rgba(0,200,130,0.14)" : "var(--surface-2)",
+      border: `1px solid ${copied === id ? "rgba(0,200,130,0.55)" : "var(--border-2)"}`,
+      color: copied === id ? "#00c882" : "var(--text-3)",
       borderRadius: "4px", cursor: "pointer", fontSize: "9px",
-      letterSpacing: "2px", fontFamily: "'JetBrains Mono', monospace",
+      letterSpacing: "2px", fontFamily: "inherit", fontWeight: 600,
     }}>
       {copied === id ? "✓ COPIED" : label}
     </button>
+  );
+
+  const ThemeToggle = () => (
+    <button
+      className="theme-btn"
+      onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+      aria-label="Toggle theme"
+      style={{
+        width: "34px", height: "34px", display: "inline-flex",
+        alignItems: "center", justifyContent: "center",
+        background: "var(--surface-2)", border: "1px solid var(--border-2)",
+        borderRadius: "6px", cursor: "pointer",
+        color: "var(--text-2)", fontSize: "14px", lineHeight: 1,
+        fontFamily: "inherit",
+      }}
+    >{theme === "dark" ? "☀" : "☾"}</button>
   );
 
   return (
     <div style={S.root}>
       <style>{css}</style>
 
-      <nav style={S.nav}>
-        <div style={S.logo}>
+      <nav style={S.nav} className="nav-inner">
+        <div style={S.logo} className="nav-logo-sep">
           <div style={S.logoHex}>⬡</div>
           <span style={S.logoText}>BUILDFORGE</span>
         </div>
@@ -349,37 +469,38 @@ export default function BuildForge() {
         <NavBtn id="templates" label="TEMPLATES" />
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "10px" }}>
           <span style={S.badge}>ANAKATECH</span>
+          <ThemeToggle />
         </div>
       </nav>
 
       {section === "product" && (
         <div className="fade-up">
-          <div style={{ position: "relative", overflow: "hidden", padding: "72px 40px 64px", borderBottom: "1px solid rgba(255,107,53,0.1)" }}>
+          <div className="hero-pad" style={{ position: "relative", overflow: "hidden", padding: "72px 40px 64px", borderBottom: "1px solid var(--accent-border)" }}>
             <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.8 }} />
-            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 60%, rgba(255,107,53,0.06) 0%, transparent 70%)" }} />
+            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 60%, var(--accent-bg) 0%, transparent 70%)" }} />
             <div style={{ position: "relative", maxWidth: "760px" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "24px", padding: "6px 14px", background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.2)", borderRadius: "20px" }}>
-                <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ff6b35", animation: "pulse 2s infinite" }} />
-                <span style={{ fontSize: "10px", color: "#ff6b35", letterSpacing: "2px" }}>BUILD GOVERNANCE SYSTEM</span>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "24px", padding: "6px 14px", background: "var(--accent-bg)", border: "1px solid var(--accent-border)", borderRadius: "20px" }}>
+                <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent)", animation: "pulse 2s infinite" }} />
+                <span style={{ fontSize: "10px", color: "var(--accent)", letterSpacing: "2px", fontWeight: 600 }}>BUILD GOVERNANCE SYSTEM</span>
               </div>
-              <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(32px,5vw,52px)", fontWeight: 800, color: "#fff", margin: "0 0 16px 0", lineHeight: 1.1, letterSpacing: "-1px" }}>
+              <h1 style={{ fontSize: "clamp(28px,5.5vw,52px)", fontWeight: 800, color: "var(--text-1)", margin: "0 0 16px 0", lineHeight: 1.1, letterSpacing: "-1px" }}>
                 Ship projects that<br />
-                <span style={{ background: "linear-gradient(90deg, #ff6b35, #ff9a6b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>don't fall apart.</span>
+                <span style={{ background: "linear-gradient(90deg, var(--accent), var(--accent-2))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>don&apos;t fall apart.</span>
               </h1>
-              <p style={{ fontSize: "14px", color: "#4a4a70", lineHeight: "1.9", maxWidth: "520px", margin: "0 0 32px 0" }}>
+              <p style={{ fontSize: "14px", color: "var(--text-3)", lineHeight: 1.85, maxWidth: "560px", margin: "0 0 32px 0" }}>
                 Four governance files. Written before you touch code. Any AI — Claude, ChatGPT, Cursor — follows them to the letter. No scope creep. No structural drift. Builds that match what you designed.
               </p>
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", marginBottom: "24px" }}>
-                <button onClick={() => setSection("agent")} style={{ padding: "13px 24px", background: "linear-gradient(135deg, #ff6b35, #ff4500)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "11px", letterSpacing: "1.5px", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", marginBottom: "28px" }}>
+                <button onClick={() => setSection("agent")} className="cta-primary" style={{ padding: "13px 24px", background: "var(--grad-accent)", border: "none", borderRadius: "6px", color: "#fff", fontSize: "11px", letterSpacing: "1.5px", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
                   GET THE AGENT PROMPT →
                 </button>
-                <button onClick={() => setSection("templates")} style={{ padding: "13px 24px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "#888", fontSize: "11px", letterSpacing: "1.5px", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace" }}>
+                <button onClick={() => setSection("templates")} style={{ padding: "13px 24px", background: "transparent", border: "1px solid var(--border-3)", borderRadius: "6px", color: "var(--text-2)", fontSize: "11px", letterSpacing: "1.5px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
                   VIEW TEMPLATES
                 </button>
               </div>
 
-              <form onSubmit={submitEmail} style={{ maxWidth: "440px" }}>
-                <div style={{ fontSize: "9px", letterSpacing: "2px", color: "#3a3a5c", marginBottom: "8px" }}>EARLY ACCESS — JOIN THE LIST</div>
+              <form onSubmit={submitEmail} style={{ maxWidth: "460px" }}>
+                <div style={{ fontSize: "9px", letterSpacing: "2px", color: "var(--text-4)", marginBottom: "8px", fontWeight: 600 }}>EARLY ACCESS — JOIN THE LIST</div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <input
                     className="signup-input"
@@ -390,12 +511,12 @@ export default function BuildForge() {
                     placeholder="you@domain.com"
                     disabled={signupState === "loading"}
                     style={{
-                      flex: "1 1 220px", minWidth: "220px",
+                      flex: "1 1 220px", minWidth: "0",
                       padding: "11px 14px",
-                      background: "rgba(255,255,255,0.02)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "6px", color: "#fff",
-                      fontSize: "12px", fontFamily: "'JetBrains Mono', monospace",
+                      background: "var(--surface-1)",
+                      border: "1px solid var(--border-2)",
+                      borderRadius: "6px", color: "var(--text-1)",
+                      fontSize: "12px", fontFamily: "inherit",
                     }}
                   />
                   <button
@@ -403,13 +524,13 @@ export default function BuildForge() {
                     disabled={signupState === "loading"}
                     style={{
                       padding: "11px 20px",
-                      background: signupState === "ok" ? "rgba(0,255,157,0.12)" : "linear-gradient(135deg, #ff6b35, #ff4500)",
-                      border: signupState === "ok" ? "1px solid rgba(0,255,157,0.5)" : "none",
+                      background: signupState === "ok" ? "rgba(0,200,130,0.14)" : "var(--grad-accent)",
+                      border: signupState === "ok" ? "1px solid rgba(0,200,130,0.55)" : "none",
                       borderRadius: "6px",
-                      color: signupState === "ok" ? "#00ff9d" : "#fff",
+                      color: signupState === "ok" ? "#00c882" : "#fff",
                       fontSize: "10px", letterSpacing: "1.5px",
                       cursor: signupState === "loading" ? "wait" : "pointer",
-                      fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+                      fontFamily: "inherit", fontWeight: 700,
                       opacity: signupState === "loading" ? 0.6 : 1,
                     }}
                   >
@@ -418,213 +539,225 @@ export default function BuildForge() {
                 </div>
                 {signupMsg && (
                   <div style={{
-                    marginTop: "8px", fontSize: "10px",
-                    color: signupState === "error" ? "#ff6b6b" : "#00ff9d",
+                    marginTop: "8px", fontSize: "10px", fontWeight: 600,
+                    color: signupState === "error" ? "#ff6b6b" : "#00c882",
                   }}>{signupMsg}</div>
                 )}
               </form>
             </div>
           </div>
 
-          <div style={{ padding: "20px 40px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "9px", letterSpacing: "2px", color: "#2a2a44" }}>WORKS WITH</span>
+          <div className="content-pad" style={{ padding: "20px 40px", borderBottom: "1px solid var(--border-1)", display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "9px", letterSpacing: "2px", color: "var(--text-4)", fontWeight: 600 }}>WORKS WITH</span>
             {AGENTS.map((a, i) => (
-              <span key={a} style={{ fontSize: "11px", color: agentIdx === i ? "#ff6b35" : "#2e2e50", transition: "color 0.4s ease", letterSpacing: "0.5px" }}>{a}</span>
+              <span key={a} style={{ fontSize: "11px", color: agentIdx === i ? "var(--accent)" : "var(--text-5)", transition: "color 0.4s ease", letterSpacing: "0.5px", fontWeight: 500 }}>{a}</span>
             ))}
           </div>
 
-          <div style={{ padding: "60px 40px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-            <div style={{ fontSize: "9px", letterSpacing: "3px", color: "#2a2a44", marginBottom: "36px" }}>HOW IT WORKS</div>
+          <div className="sect-pad" style={{ padding: "60px 40px", borderBottom: "1px solid var(--border-1)" }}>
+            <div style={{ fontSize: "9px", letterSpacing: "3px", color: "var(--text-4)", marginBottom: "36px", fontWeight: 600 }}>HOW IT WORKS</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "2px" }}>
               {[
                 ["01", "Interview", "The agent asks your project questions one by one. You answer in plain language.", "#ff6b35"],
-                ["02", "Generate", "All 4 governance files written from your answers automatically.", "#00d4ff"],
-                ["03", "Execute", "Hand the files to any AI. It follows the plan and enforces your rules on every decision.", "#00ff9d"],
-                ["04", "Ship", "No scope creep. No rogue decisions. Builds that match what you designed.", "#a855f7"],
+                ["02", "Generate", "All 4 governance files written from your answers automatically.", "#00b8e6"],
+                ["03", "Execute", "Hand the files to any AI. It follows the plan and enforces your rules on every decision.", "#00c882"],
+                ["04", "Ship", "No scope creep. No rogue decisions. Builds that match what you designed.", "#9b4dd6"],
               ].map(([n, t, d, c]) => (
-                <div key={n} style={{ padding: "28px 24px", background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.04)" }}>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "36px", fontWeight: 800, color: c, opacity: 0.3, marginBottom: "16px" }}>{n}</div>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff", marginBottom: "8px", fontFamily: "'Syne', sans-serif" }}>{t}</div>
-                  <div style={{ fontSize: "11px", color: "#333a55", lineHeight: "1.8" }}>{d}</div>
+                <div key={n} style={{ padding: "28px 24px", background: "var(--surface-1)", border: "1px solid var(--border-1)" }}>
+                  <div style={{ fontSize: "36px", fontWeight: 800, color: c, opacity: 0.55, marginBottom: "16px", letterSpacing: "-1px" }}>{n}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-1)", marginBottom: "8px", letterSpacing: "0.5px" }}>{t}</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-3)", lineHeight: 1.75 }}>{d}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ padding: "60px 40px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-            <div style={{ fontSize: "9px", letterSpacing: "3px", color: "#2a2a44", marginBottom: "36px" }}>THE 4 GOVERNANCE FILES</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="sect-pad" style={{ padding: "60px 40px", borderBottom: "1px solid var(--border-1)" }}>
+            <div style={{ fontSize: "9px", letterSpacing: "3px", color: "var(--text-4)", marginBottom: "36px", fontWeight: 600 }}>THE 4 GOVERNANCE FILES</div>
+            <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               {[
                 ["01", "PRD", "Scope lock. What it IS and what it is NOT. If it's not in the PRD, the agent doesn't build it.", "#ff6b35"],
-                ["02", "ARCHITECTURE", "Blueprint. Exact folder structure, stack, naming conventions, data models. Followed exactly.", "#00d4ff"],
-                ["03", "AI RULES", "The law. Non-negotiables checked before any step is marked done.", "#00ff9d"],
-                ["04", "PLAN", "Execution map. One step. Fully done. Verified. Then — and only then — next step.", "#a855f7"],
+                ["02", "ARCHITECTURE", "Blueprint. Exact folder structure, stack, naming conventions, data models. Followed exactly.", "#00b8e6"],
+                ["03", "AI RULES", "The law. Non-negotiables checked before any step is marked done.", "#00c882"],
+                ["04", "PLAN", "Execution map. One step. Fully done. Verified. Then — and only then — next step.", "#9b4dd6"],
               ].map(([n, t, d, c]) => (
-                <div key={n} style={{ padding: "24px", background: `linear-gradient(135deg, ${c}08 0%, transparent 60%)`, border: `1px solid ${c}18`, borderLeft: `3px solid ${c}`, borderRadius: "4px" }}>
+                <div key={n} style={{ padding: "24px", background: `linear-gradient(135deg, ${c}14 0%, transparent 60%)`, border: `1px solid ${c}30`, borderLeft: `3px solid ${c}`, borderRadius: "4px" }}>
                   <div style={{ display: "flex", gap: "10px", alignItems: "baseline", marginBottom: "10px" }}>
-                    <span style={{ fontSize: "9px", color: c, letterSpacing: "2px", opacity: 0.6 }}>{n}</span>
-                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>{t}</span>
+                    <span style={{ fontSize: "9px", color: c, letterSpacing: "2px", opacity: 0.85, fontWeight: 700 }}>{n}</span>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-1)", letterSpacing: "1px" }}>{t}</span>
                   </div>
-                  <div style={{ fontSize: "11px", color: "#333a55", lineHeight: "1.8" }}>{d}</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-3)", lineHeight: 1.75 }}>{d}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ padding: "60px 40px" }}>
-            <div style={{ fontSize: "9px", letterSpacing: "3px", color: "#2a2a44", marginBottom: "12px" }}>PRICING</div>
-            <p style={{ fontSize: "12px", color: "#2a2a44", marginBottom: "36px" }}>
-              No commitment required. Buy once when you need it. Subscribe when you're hooked.
+          <div className="sect-pad" style={{ padding: "60px 40px" }}>
+            <div style={{ fontSize: "9px", letterSpacing: "3px", color: "var(--text-4)", marginBottom: "12px", fontWeight: 600 }}>PRICING</div>
+            <p style={{ fontSize: "12px", color: "var(--text-3)", marginBottom: "36px", lineHeight: 1.7 }}>
+              No commitment required. Buy once when you need it. Subscribe when you&apos;re hooked. Secure Stripe checkout.
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "14px" }}>
               {PLANS.map(plan => (
                 <div key={plan.id} className="plan-card"
                   onMouseEnter={() => setHoveredPlan(plan.id)}
                   onMouseLeave={() => setHoveredPlan(null)}
                   style={{
                     padding: "28px 22px",
-                    background: hoveredPlan === plan.id ? `${plan.color}08` : plan.id === "builder" ? "rgba(255,107,53,0.05)" : "rgba(255,255,255,0.01)",
-                    border: plan.id === "builder" ? `1px solid rgba(255,107,53,0.35)` : plan.id === "oneoff" ? `1px solid rgba(255,215,0,0.25)` : "1px solid rgba(255,255,255,0.06)",
+                    background: hoveredPlan === plan.id ? `${plan.color}0e` : plan.id === "builder" ? "rgba(255,107,53,0.05)" : "var(--surface-1)",
+                    border: plan.id === "builder" ? `1px solid rgba(255,107,53,0.4)` : plan.id === "oneoff" ? `1px solid rgba(255,215,0,0.3)` : "1px solid var(--border-1)",
                     borderTop: `3px solid ${plan.color}`,
                     borderRadius: "6px",
                     position: "relative",
-                    boxShadow: plan.glow ? `0 0 30px ${plan.color}0a` : "none",
+                    boxShadow: plan.glow ? `0 0 30px ${plan.color}14` : "none",
                   }}>
                   {plan.badge && (
                     <div style={{ position: "absolute", top: "-1px", right: "16px", background: plan.color, color: plan.id === "oneoff" ? "#000" : "#fff", fontSize: "7px", letterSpacing: "1.5px", padding: "3px 8px", borderRadius: "0 0 4px 4px", fontWeight: 700 }}>
                       {plan.badge}
                     </div>
                   )}
-                  <div style={{ fontSize: "9px", letterSpacing: "2px", color: plan.color, marginBottom: "8px" }}>{plan.name.toUpperCase()}</div>
+                  <div style={{ fontSize: "9px", letterSpacing: "2px", color: plan.color, marginBottom: "8px", fontWeight: 700 }}>{plan.name.toUpperCase()}</div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: "3px", marginBottom: "6px" }}>
                     {plan.price === "0"
-                      ? <span style={{ fontFamily: "'Syne', sans-serif", fontSize: "28px", fontWeight: 800, color: "#fff" }}>Free</span>
+                      ? <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--text-1)", letterSpacing: "-1px" }}>Free</span>
                       : <>
-                        <span style={{ fontSize: "13px", color: "#555", marginTop: "4px" }}>$</span>
-                        <span style={{ fontFamily: "'Syne', sans-serif", fontSize: "28px", fontWeight: 800, color: "#fff" }}>{plan.price}</span>
-                        <span style={{ fontSize: "11px", color: "#2a2a44" }}>{plan.per}</span>
+                        <span style={{ fontSize: "13px", color: "var(--text-4)", marginTop: "4px", fontWeight: 600 }}>$</span>
+                        <span style={{ fontSize: "28px", fontWeight: 800, color: "var(--text-1)", letterSpacing: "-1px" }}>{plan.price}</span>
+                        <span style={{ fontSize: "11px", color: "var(--text-4)", fontWeight: 500 }}>{plan.per}</span>
                       </>}
                   </div>
-                  <div style={{ fontSize: "10px", color: "#2a2a44", marginBottom: "20px", lineHeight: "1.5" }}>{plan.description}</div>
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: "18px", marginBottom: "20px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-3)", marginBottom: "20px", lineHeight: 1.55 }}>{plan.description}</div>
+                  <div style={{ borderTop: "1px solid var(--border-1)", paddingTop: "18px", marginBottom: "20px" }}>
                     {plan.features.map((f, i) => (
                       <div key={i} className="feature-row" style={{ display: "flex", gap: "10px", padding: "5px 0", alignItems: "flex-start" }}>
-                        <span style={{ fontSize: "10px", color: f.included ? plan.color : "#1e1e38", minWidth: "14px", marginTop: "1px" }}>{f.included ? "✓" : "×"}</span>
-                        <span style={{ fontSize: "10px", color: f.included ? "#6a6a90" : "#1e1e38", lineHeight: "1.5" }}>{f.text}</span>
+                        <span style={{ fontSize: "10px", color: f.included ? plan.color : "var(--text-5)", minWidth: "14px", marginTop: "1px", fontWeight: 700 }}>{f.included ? "✓" : "×"}</span>
+                        <span style={{ fontSize: "11px", color: f.included ? "var(--text-2)" : "var(--text-5)", lineHeight: 1.55 }}>{f.text}</span>
                       </div>
                     ))}
                   </div>
-                  {plan.note && <div style={{ fontSize: "9px", color: plan.color, marginBottom: "12px", opacity: 0.7 }}>↑ {plan.note}</div>}
-                  <button style={{
-                    width: "100%", padding: "11px",
-                    background: plan.ctaStyle === "brand" ? "linear-gradient(135deg,#ff6b35,#ff4500)"
-                      : plan.ctaStyle === "gold" ? "linear-gradient(135deg,#ffd700,#ffaa00)"
-                        : "transparent",
-                    border: plan.ctaStyle === "outline" ? `1px solid ${plan.color}` : "none",
-                    color: plan.ctaStyle === "gold" ? "#000" : plan.ctaStyle === "brand" ? "#fff" : plan.color,
-                    borderRadius: "4px", cursor: "pointer", fontSize: "10px", letterSpacing: "2px",
-                    fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
-                  }}>{plan.cta}</button>
+                  {plan.note && <div style={{ fontSize: "10px", color: plan.color, marginBottom: "12px", opacity: 0.9, fontWeight: 500 }}>↑ {plan.note}</div>}
+                  <button
+                    onClick={() => startCheckout(plan.id)}
+                    disabled={checkoutPlan !== null && checkoutPlan !== plan.id}
+                    style={{
+                      width: "100%", padding: "11px",
+                      background: plan.ctaStyle === "brand" ? "var(--grad-accent)"
+                        : plan.ctaStyle === "gold" ? "linear-gradient(135deg,#ffd700,#ffaa00)"
+                          : "transparent",
+                      border: plan.ctaStyle === "outline" ? `1px solid ${plan.color}` : "none",
+                      color: plan.ctaStyle === "gold" ? "#000" : plan.ctaStyle === "brand" ? "#fff" : plan.color,
+                      borderRadius: "4px", cursor: checkoutPlan === plan.id ? "wait" : "pointer", fontSize: "10px", letterSpacing: "2px",
+                      fontFamily: "inherit", fontWeight: 700,
+                      opacity: checkoutPlan && checkoutPlan !== plan.id ? 0.5 : 1,
+                    }}>
+                    {checkoutPlan === plan.id ? <span className="spin">◜</span> : plan.cta}
+                  </button>
                 </div>
               ))}
+            </div>
+            {checkoutMsg && (
+              <div style={{ marginTop: "16px", fontSize: "11px", color: "#ff6b6b", fontWeight: 600 }}>{checkoutMsg}</div>
+            )}
+            <div style={{ marginTop: "16px", fontSize: "10px", color: "var(--text-4)", letterSpacing: "0.5px" }}>
+              🔒 Payments via Stripe · Test cards supported in dev · Cancel anytime
             </div>
           </div>
         </div>
       )}
 
       {section === "agent" && (
-        <div className="fade-up" style={{ padding: "48px 40px", maxWidth: "900px" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "16px", padding: "5px 12px", background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.2)", borderRadius: "20px" }}>
-            <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#00d4ff", animation: "pulse 2s infinite" }} />
-            <span style={{ fontSize: "9px", color: "#00d4ff", letterSpacing: "2px" }}>FOR YOUR AGENT</span>
+        <div className="fade-up content-pad" style={{ padding: "48px 40px", maxWidth: "900px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "16px", padding: "5px 12px", background: "rgba(0,184,230,0.1)", border: "1px solid rgba(0,184,230,0.3)", borderRadius: "20px" }}>
+            <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#00b8e6", animation: "pulse 2s infinite" }} />
+            <span style={{ fontSize: "9px", color: "#00b8e6", letterSpacing: "2px", fontWeight: 700 }}>FOR YOUR AGENT</span>
           </div>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "28px", fontWeight: 800, color: "#fff", margin: "0 0 10px 0", letterSpacing: "-0.5px" }}>
+          <h2 style={{ fontSize: "clamp(22px,3.5vw,30px)", fontWeight: 800, color: "var(--text-1)", margin: "0 0 10px 0", letterSpacing: "-0.5px", lineHeight: 1.15 }}>
             One prompt. Any AI.<br />Structured builds every time.
           </h2>
-          <p style={{ fontSize: "12px", color: "#333a55", lineHeight: "1.9", maxWidth: "580px", marginBottom: "36px" }}>
+          <p style={{ fontSize: "13px", color: "var(--text-3)", lineHeight: 1.85, maxWidth: "620px", marginBottom: "36px" }}>
             Paste this as the system prompt in Claude, ChatGPT, Cursor, or any capable model. It interviews you, writes all 4 governance files, confirms them, then executes the build one step at a time.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: "10px", marginBottom: "36px" }}>
             {[
               ["01  Copy", "Hit the button. Full governance prompt on clipboard.", "#ff6b35"],
-              ["02  Open AI", "Claude, ChatGPT, Cursor — any new conversation.", "#00d4ff"],
-              ["03  Paste", "Into the system prompt field or top of chat.", "#00ff9d"],
-              ["04  Build", "Say 'new build'. Agent interviews you, writes files, executes.", "#a855f7"],
+              ["02  Open AI", "Claude, ChatGPT, Cursor — any new conversation.", "#00b8e6"],
+              ["03  Paste", "Into the system prompt field or top of chat.", "#00c882"],
+              ["04  Build", "Say 'new build'. Agent interviews you, writes files, executes.", "#9b4dd6"],
             ].map(([t, d, c]) => (
-              <div key={t} style={{ padding: "18px", background: "rgba(255,255,255,0.01)", border: `1px solid ${c}15`, borderTop: `2px solid ${c}`, borderRadius: "4px" }}>
-                <div style={{ fontSize: "10px", color: c, fontWeight: 700, marginBottom: "6px" }}>{t}</div>
-                <div style={{ fontSize: "10px", color: "#2a2a44", lineHeight: "1.7" }}>{d}</div>
+              <div key={t} style={{ padding: "18px", background: "var(--surface-1)", border: `1px solid ${c}30`, borderTop: `2px solid ${c}`, borderRadius: "4px" }}>
+                <div style={{ fontSize: "11px", color: c, fontWeight: 700, marginBottom: "6px", letterSpacing: "0.5px" }}>{t}</div>
+                <div style={{ fontSize: "11px", color: "var(--text-3)", lineHeight: 1.7 }}>{d}</div>
               </div>
             ))}
           </div>
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "24px" }}>
-            {[["One question at a time", "#ff6b35"], ["Generates all 4 files", "#00d4ff"], ["Continuous mode available", "#00ff9d"], ["Works with any capable LLM", "#a855f7"]].map(([l, c]) => (
-              <div key={l} style={{ padding: "5px 12px", background: `${c}0e`, border: `1px solid ${c}25`, borderRadius: "20px", fontSize: "10px", color: c }}>✓ {l}</div>
+            {[["One question at a time", "#ff6b35"], ["Generates all 4 files", "#00b8e6"], ["Continuous mode available", "#00c882"], ["Works with any capable LLM", "#9b4dd6"]].map(([l, c]) => (
+              <div key={l} style={{ padding: "5px 12px", background: `${c}14`, border: `1px solid ${c}35`, borderRadius: "20px", fontSize: "11px", color: c, fontWeight: 600 }}>✓ {l}</div>
             ))}
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
             <CopyBtn text={AGENT_PROMPT} id="agentprompt" label="COPY AGENT PROMPT" />
           </div>
-          <pre style={{ background: "#030309", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px", padding: "24px", color: "#3a3a5c", fontSize: "10px", lineHeight: "2", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <pre style={{ background: "var(--code-bg)", border: "1px solid var(--border-1)", borderRadius: "6px", padding: "24px", color: "var(--text-3)", fontSize: "11px", lineHeight: 1.85, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit" }}>
             {AGENT_PROMPT}
           </pre>
         </div>
       )}
 
       {section === "templates" && (
-        <div className="fade-up" style={{ padding: "48px 40px", maxWidth: "980px" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "16px", padding: "5px 12px", background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: "20px" }}>
-            <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#a855f7", animation: "pulse 2s infinite" }} />
-            <span style={{ fontSize: "9px", color: "#a855f7", letterSpacing: "2px" }}>TEMPLATE LIBRARY</span>
+        <div className="fade-up content-pad" style={{ padding: "48px 40px", maxWidth: "980px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "16px", padding: "5px 12px", background: "rgba(155,77,214,0.1)", border: "1px solid rgba(155,77,214,0.3)", borderRadius: "20px" }}>
+            <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#9b4dd6", animation: "pulse 2s infinite" }} />
+            <span style={{ fontSize: "9px", color: "#9b4dd6", letterSpacing: "2px", fontWeight: 700 }}>TEMPLATE LIBRARY</span>
           </div>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "26px", fontWeight: 800, color: "#fff", margin: "0 0 8px 0", letterSpacing: "-0.5px" }}>
+          <h2 style={{ fontSize: "clamp(20px,3.2vw,28px)", fontWeight: 800, color: "var(--text-1)", margin: "0 0 8px 0", letterSpacing: "-0.5px", lineHeight: 1.15 }}>
             All 4 files. Pre-filled.<br />Ready to hand to your agent.
           </h2>
-          <p style={{ fontSize: "12px", color: "#2a2a44", marginBottom: "32px" }}>
+          <p style={{ fontSize: "12px", color: "var(--text-3)", marginBottom: "32px", lineHeight: 1.7 }}>
             Pick a template, copy the files, swap placeholders for your project, hand to agent. It executes from Step 1.1.
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "10px", marginBottom: "28px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: "10px", marginBottom: "28px" }}>
             {TEMPLATES.map(t => (
               <div key={t.id} className="tpl-card"
                 onClick={() => { setActiveTemplate(t.id); setActiveFile("prd"); }}
-                style={{ padding: "18px", background: activeTemplate === t.id ? `${t.color}0c` : "rgba(255,255,255,0.01)", border: activeTemplate === t.id ? `1px solid ${t.color}55` : `1px solid rgba(255,255,255,0.05)`, borderLeft: `3px solid ${activeTemplate === t.id ? t.color : "transparent"}`, borderRadius: "4px", cursor: "pointer" }}>
+                style={{ padding: "18px", background: activeTemplate === t.id ? `${t.color}14` : "var(--surface-1)", border: activeTemplate === t.id ? `1px solid ${t.color}66` : `1px solid var(--border-1)`, borderLeft: `3px solid ${activeTemplate === t.id ? t.color : "transparent"}`, borderRadius: "4px", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
                   <span style={{ color: t.color, fontSize: "18px" }}>{t.icon}</span>
-                  <span style={{ fontSize: "8px", letterSpacing: "1px", color: t.color, background: `${t.color}14`, border: `1px solid ${t.color}30`, borderRadius: "2px", padding: "2px 6px" }}>{t.tag}</span>
+                  <span style={{ fontSize: "8px", letterSpacing: "1px", color: t.color, background: `${t.color}1a`, border: `1px solid ${t.color}40`, borderRadius: "2px", padding: "2px 6px", fontWeight: 700 }}>{t.tag}</span>
                 </div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "12px", fontWeight: 700, color: "#fff", marginBottom: "5px" }}>{t.name}</div>
-                <div style={{ fontSize: "10px", color: "#222238", lineHeight: "1.6", marginBottom: "8px" }}>{t.description}</div>
-                <div style={{ fontSize: "9px", color: `${t.color}66` }}>{t.stack}</div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-1)", marginBottom: "5px", letterSpacing: "0.5px" }}>{t.name}</div>
+                <div style={{ fontSize: "11px", color: "var(--text-3)", lineHeight: 1.65, marginBottom: "8px" }}>{t.description}</div>
+                <div style={{ fontSize: "10px", color: t.color, opacity: 0.75, fontWeight: 500 }}>{t.stack}</div>
               </div>
             ))}
           </div>
 
           {tpl && (
-            <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "6px", overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "0 4px", background: "rgba(0,0,0,0.2)" }}>
+            <div style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", borderRadius: "6px", overflow: "hidden" }}>
+              <div className="file-tabs" style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--border-1)", padding: "0 4px", background: "var(--surface-2)" }}>
                 {([["prd", "PRD.md"], ["arch", "ARCHITECTURE.md"], ["rules", "AI_RULES.md"], ["plan", "PLAN.md"]] as const).map(([id, label]) => (
                   <button key={id} className="file-tab" onClick={() => setActiveFile(id)} style={{
                     padding: "12px 14px", background: "none", border: "none",
                     borderBottom: activeFile === id ? `2px solid ${tpl.color}` : "2px solid transparent",
-                    color: activeFile === id ? "#fff" : "#2a2a44",
-                    cursor: "pointer", fontSize: "9px", letterSpacing: "1px",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    color: activeFile === id ? "var(--text-1)" : "var(--text-4)",
+                    cursor: "pointer", fontSize: "10px", letterSpacing: "1px",
+                    fontFamily: "inherit", fontWeight: 600,
                   }}>{label}</button>
                 ))}
                 <div style={{ marginLeft: "auto", padding: "0 12px" }}>
                   <CopyBtn text={tpl[fileKey[activeFile]]} id={`${tpl.id}-${activeFile}`} />
                 </div>
               </div>
-              <pre style={{ margin: 0, padding: "24px", color: "#3a3a5c", fontSize: "10px", lineHeight: "2", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "500px", overflowY: "auto" }}>
+              <pre style={{ margin: 0, padding: "24px", color: "var(--text-3)", fontSize: "11px", lineHeight: 1.85, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "500px", overflowY: "auto", fontFamily: "inherit" }}>
                 {tpl[fileKey[activeFile]]}
               </pre>
-              <div style={{ padding: "16px 24px", borderTop: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,215,0,0.03)", display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ fontSize: "10px", color: "#ffd70060" }}>⚡</span>
-                <span style={{ fontSize: "10px", color: "#2a2a44", lineHeight: "1.7" }}>
+              <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-1)", background: "rgba(255,215,0,0.05)", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "11px", color: "#e6b800" }}>⚡</span>
+                <span style={{ fontSize: "11px", color: "var(--text-3)", lineHeight: 1.65 }}>
                   Copy all 4 files · Replace bracketed placeholders · Paste For Your Agent prompt as system prompt · Attach files · Say CONFIRMED · Agent executes from Step 1.1
                 </span>
               </div>

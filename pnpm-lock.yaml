@@ -23,6 +23,9 @@ importers:
       resend:
         specifier: ^6.12.2
         version: 6.12.2(@react-email/render@2.0.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+      stripe:
+        specifier: ^22.0.2
+        version: 22.0.2(@types/node@20.19.39)
     devDependencies:
       '@opennextjs/cloudflare':
         specifier: ^1.19.3
@@ -2000,6 +2003,15 @@ packages:
   strip-final-newline@2.0.0:
     resolution: {integrity: sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA==}
     engines: {node: '>=6'}
+
+  stripe@22.0.2:
+    resolution: {integrity: sha512-2/BLrQ3oB1zlNfeL/LfHFjTGx6EQn0j+ztrrTJHuDjV5VVIpk92oSDaxyKLUr3pG3dnee2LZqhFUv2Bf0G1/3g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   strnum@2.2.3:
     resolution: {integrity: sha512-oKx6RUCuHfT3oyVjtnrmn19H1SiCqgJSg+54XqURKp5aCMbrXrhLjRN9TjuwMjiYstZ0MzDrHqkGZ5dFTKd+zg==}
@@ -4539,6 +4551,10 @@ snapshots:
       ansi-regex: 6.2.2
 
   strip-final-newline@2.0.0: {}
+
+  stripe@22.0.2(@types/node@20.19.39):
+    optionalDependencies:
+      '@types/node': 20.19.39
 
   strnum@2.2.3: {}
 

@@ -16,7 +16,8 @@
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
-    "resend": "^6.12.2"
+    "resend": "^6.12.2",
+    "stripe": "^22.0.2"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.19.3",
