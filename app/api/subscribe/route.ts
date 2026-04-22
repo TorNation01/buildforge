@@ -26,21 +26,20 @@ export async function POST(req: Request) {
   const notifyTo = process.env.NOTIFY_EMAIL;
   const notifyFrom = process.env.RESEND_FROM;
 
-  if (!apiKey) {
+  if (!apiKey || !audienceId) {
     return NextResponse.json({ error: "Signups are not configured yet." }, { status: 503 });
   }
 
   const resend = new Resend(apiKey);
 
-  if (audienceId) {
-    const { error } = await resend.contacts.create({
-      email,
-      audienceId,
-      unsubscribed: false,
-    });
-    if (error && error.name !== "validation_error") {
-      return NextResponse.json({ error: "Could not save email." }, { status: 502 });
-    }
+  const { error } = await resend.contacts.create({
+    email,
+    audienceId,
+    unsubscribed: false,
+  });
+
+  if (error && error.name !== "validation_error") {
+    return NextResponse.json({ error: "Could not save email." }, { status: 502 });
   }
 
   if (notifyTo && notifyFrom) {
