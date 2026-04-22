@@ -9,7 +9,7 @@
     "lint": "next lint",
     "pages:build": "next-on-pages",
     "pages:preview": "wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat",
-    "pages:deploy": "wrangler pages deploy .vercel/output/static"
+    "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name=buildforge"
   },
   "dependencies": {
     "@react-email/render": "^2.0.7",
