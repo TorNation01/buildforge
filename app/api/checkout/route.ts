@@ -35,8 +35,16 @@ export async function POST(req: Request) {
   const priceId = process.env[envVar];
 
   if (!secretKey || !priceId) {
+    const missing: string[] = [];
+    if (!secretKey) missing.push("STRIPE_SECRET_KEY");
+    if (!priceId) missing.push(envVar);
+    const available = Object.keys(process.env).filter(k => k.startsWith("STRIPE_") || k.startsWith("RESEND_"));
     return NextResponse.json(
-      { error: "Checkout is not configured yet." },
+      {
+        error: "Checkout is not configured yet.",
+        missing,
+        availableVars: available,
+      },
       { status: 503 }
     );
   }
