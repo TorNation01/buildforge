@@ -66,7 +66,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No session URL returned." }, { status: 502 });
     }
     return NextResponse.json({ url: session.url });
-  } catch {
-    return NextResponse.json({ error: "Could not start checkout." }, { status: 502 });
+  } catch (err) {
+    const e = err as { message?: string; code?: string; type?: string; param?: string };
+    return NextResponse.json({
+      error: "Could not start checkout.",
+      stripeError: {
+        message: e?.message,
+        code: e?.code,
+        type: e?.type,
+        param: e?.param,
+      },
+    }, { status: 502 });
   }
 }
